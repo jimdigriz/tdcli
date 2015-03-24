@@ -92,7 +92,7 @@ if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $T, '<', "$ENV{HOME}/.tdcli/csrf
 unlink "$ENV{HOME}/.tdcli/csrftoken";
 
 my %accts;
-($cfg->{_}->{'acct'}, $csrftoken, %accts) = &login($csrftoken);
+($csrftoken, %accts) = &login($csrftoken);
 
 # TODO only write when changed
 $cfg->write("$ENV{HOME}/.tdcli/config");
@@ -187,7 +187,7 @@ sub login {
 		$accts{$_->{accountId}} = $_
 			foreach (@{$info->{accounts}});
 
-		return ($cfg->{_}->{'acct'}, $csrftoken, %accts)
+		return ($csrftoken, %accts)
 			if (defined($info));
 	}
 
@@ -247,9 +247,9 @@ sub login {
 		unless (defined($link));
 
 	my $uri = URI->new($link->URI->fragment);
-	my $useracct = ($uri->path_segments)[2];
+	$cfg->{_}->{'acct'} = ($uri->path_segments)[2];
 	die 'cannot find user account id'
-		unless (defined($useracct));
+		unless (defined($cfg->{_}->{'acct'}));
 
 	my %query = map { split /=/, $uri->query, 2 } split /&/, $uri->query, 2;
 	die 'cannot find CSRFTOKEN'
@@ -261,7 +261,7 @@ sub login {
 	$accts{$_->{accountId}} = $_
 		foreach (@{$info->{accounts}});
 
-	return ($cfg->{_}->{'acct'}, $query{CSRFTOKEN}, %accts)
+	return ($query{CSRFTOKEN}, %accts)
 }
 
 sub fetchJSON {
