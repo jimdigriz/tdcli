@@ -14,7 +14,7 @@ use URI;
 use JSON;
 use Getopt::Std;
 use Time::Piece;
-use Date::Parse;
+use Date::Calc qw(Delta_Days);
 
 use Data::Dumper;
 
@@ -39,6 +39,9 @@ $opts{t} = localtime->ymd
 	unless (defined($opts{t}));
 die 'to date must be of the format YYYY-MM-DD'
 	unless ($opts{t} =~ /^[0-9]{4}-[01][0-9]-[0-3][0-9]$/);
+
+die 'from date is later than to date'
+	unless (Delta_Days(split(/-/, $opts{f}, 3), split(/-/, $opts{t}, 3)) > 0);
 
 mkdir "$ENV{HOME}/.tdcli"
 	unless (-d "$ENV{HOME}/.tdcli");

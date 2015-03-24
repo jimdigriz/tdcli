@@ -8,7 +8,7 @@
  * [WWW::Mechanize](http://search.cpan.org/~ether/WWW-Mechanize/lib/WWW/Mechanize.pm)
  * [URI](http://search.cpan.org/~ether/URI/lib/URI.pm)
  * [JSON](http://search.cpan.org/~makamaka/JSON/lib/JSON.pm)
- * [Date::Parse](http://search.cpan.org/~gbarr/TimeDate/lib/Date/Parse.pm)
+ * [Date::Calc](http://search.cpan.org/~stbey/Date-Calc/lib/Date/Calc.pod)
 
 Start off by fetching the source which requires you to [have git installed on your workstation](http://git-scm.com/book/en/Getting-Started-Installing-Git):
 
@@ -18,7 +18,7 @@ Start off by fetching the source which requires you to [have git installed on yo
 ## Debian 'wheezy' 7.x
 
     sudo apt-get update
-    sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl libtimedate-perl
+    sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl libdate-calc-perl
 
 # Configuration
 
