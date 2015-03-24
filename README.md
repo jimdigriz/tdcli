@@ -9,6 +9,7 @@
  * [URI](http://search.cpan.org/~ether/URI/lib/URI.pm)
  * [JSON](http://search.cpan.org/~makamaka/JSON/lib/JSON.pm)
  * [Date::Calc](http://search.cpan.org/~stbey/Date-Calc/lib/Date/Calc.pod)
+ * [Text::CSV](http://search.cpan.org/~makamaka/Text-CSV/lib/Text/CSV.pm)
 
 Start off by fetching the source which requires you to [have git installed on your workstation](http://git-scm.com/book/en/Getting-Started-Installing-Git):
 
@@ -18,7 +19,7 @@ Start off by fetching the source which requires you to [have git installed on yo
 ## Debian 'wheezy' 7.x
 
     sudo apt-get update
-    sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl libdate-calc-perl
+    sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl libdate-calc-perl libtext-csv-perl
 
 # Configuration
 

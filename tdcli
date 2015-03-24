@@ -15,6 +15,7 @@ use JSON;
 use Getopt::Std;
 use Time::Piece;
 use Date::Calc qw(Today Delta_Days Add_Delta_YMD);
+use Text::CSV;
 
 use Data::Dumper;
 
@@ -113,13 +114,17 @@ unless (defined($opts{P}) || defined($opts{T})) {
 die 'need to supply valid account id'
 	unless (defined($opts{a}) && defined($accts{$opts{a}}));
 
+my $csv = Text::CSV->new;
+$csv->eol("\r\n");
+
+my %fields;
+my @data;
 if ($opts{P}) {
 	my $j = &fetchJSON($opts{a}, URL_BASE . URL_PORT);
 
-	print Dumper $j;
+	@data = @{$j->{portfolios}->{ALL}};
+	%fields = map { $_, 1 } map { keys $_ } @data;
 } elsif ($opts{T}) {
-	my @trans;
-
 	my @f = @{$opts{f}};
 	my @t = Add_Delta_YMD(@f, 0, 18, 0);
 	while (Delta_Days(@f, @{$opts{t}}) >= 0) {
@@ -129,13 +134,18 @@ if ($opts{P}) {
 		my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN,
 				fromDate => join('/', reverse @f), toDate => join('/', reverse @t));
 
-		push @trans, @{$j->{statementLines}};
+		push @data, @{$j->{statementLines}};
 
 		@f = Add_Delta_YMD(@f, 0, 18, 0);
 		@t = Add_Delta_YMD(@f, 0, 18, 0);
 	}
 
-	print Dumper \@trans;
+	%fields = map { $_, 1 } map { keys $_ } @data;
+}
+
+$csv->print(\*STDOUT, [ keys %fields ]);
+foreach my $d (@data) {
+	$csv->print(\*STDOUT, [ map { $d->{$_} } keys %fields ]);
 }
 
 exit 0;
