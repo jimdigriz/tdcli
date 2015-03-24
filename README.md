@@ -8,6 +8,7 @@
  * [WWW::Mechanize](http://search.cpan.org/~ether/WWW-Mechanize/lib/WWW/Mechanize.pm)
  * [URI](http://search.cpan.org/~ether/URI/lib/URI.pm)
  * [JSON](http://search.cpan.org/~makamaka/JSON/lib/JSON.pm)
+ * [Date::Parse](http://search.cpan.org/~gbarr/TimeDate/lib/Date/Parse.pm)
 
 Start off by fetching the source which requires you to [have git installed on your workstation](http://git-scm.com/book/en/Getting-Started-Installing-Git):
 
@@ -17,7 +18,7 @@ Start off by fetching the source which requires you to [have git installed on yo
 ## Debian 'wheezy' 7.x
 
     sudo apt-get update
-    sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl
+    sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl libtimedate-perl
 
 # Configuration
 
@@ -41,6 +42,21 @@ Now edit the file:
 
 # Usage
 
-At the moment, if you just run the tool it will log you in and print out a list of your accounts:
+Just running the tool with no parameters will list your accounts:
 
-    tdcli
+    $ ./tdcli
+    Accounts (01234567890):
+     * 1234567 {ISA}: isa
+     * 0987654 {TRADING}: trading
+
+The tool has some basic built in help to show its other functionality:
+
+    $ ./tdcli --help
+    Usage: tdcli [ -a 1234 [ -p | -t [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
+    Pull data from your TD Direct Investing account.
+    
+      -a ID                    select account number
+      -p                       show portfolio
+      -t                       list transactions
+      -f YYYY-MM-DD            from date (default: 1st of current month)
+      -t YYYY-MM-DD            to date (default: today)

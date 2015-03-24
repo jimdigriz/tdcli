@@ -12,6 +12,8 @@ use WWW::Mechanize;
 use HTTP::Status qw(is_client_error is_server_error);
 use URI;
 use JSON;
+use Getopt::Std;
+use Date::Parse;
 
 use Data::Dumper;
 
@@ -22,7 +24,10 @@ use constant URL_LOGIN	=> '/login.jsp';
 use constant URL_STEPUP	=> '/displayStepUpQuestion.sp';
 use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
-use constant URL_TRANS	=> '/webbroker2/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
+use constant URL_TRAN	=> '/webbroker2/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
+
+my %opts;
+getopts('pta:f:t:', \%opts);
 
 mkdir "$ENV{HOME}/.tdcli"
 	unless (-d "$ENV{HOME}/.tdcli");
@@ -59,13 +64,15 @@ if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1) {
 $mech->cookie_jar({file => "$ENV{HOME}/.tdcli/cookies.txt", autosave => 1, ignore_discard => 1});
 chmod 0600, "$ENV{HOME}/.tdcli/cookies.txt";
 
-my ($info, $csrftoken);
+my $csrftoken;
 if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $t, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
 	local $/;
 	$csrftoken = <$t>;
 }
 unlink "$ENV{HOME}/.tdcli/csrftoken";
-($cfg->{_}->{'acct'}, $csrftoken, $info) = &login($csrftoken);
+
+my %accts;
+($cfg->{_}->{'acct'}, $csrftoken, %accts) = &login($csrftoken);
 
 # TODO only write when changed
 $cfg->write("$ENV{HOME}/.tdcli/config");
@@ -78,10 +85,36 @@ print $t $csrftoken;
 close $t;
 
 print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
-printf " * %s {%s}: %s\n", $_->{accountId}, $_->{type}, $_->{description}
-	foreach (@{$info->{accounts}});
+printf " * %s {%s}: %s\n", $_, $accts{$_}{type}, $accts{$_}{description}
+		foreach (keys %accts);
+
+die 'need to supply valid account id'
+	if ((defined($opts{p}) || defined($opts{t})) && !(defined($opts{a}) && defined($accts{$opts{a}})));
+
+if ($opts{p}) {
+	my $j = &fetchJSON($opts{a}, URL_BASE . URL_PORT);
+	print Dumper $j;
+} elsif ($opts{t}) {
+	my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN);
+	print Dumper $j;
+}
 
 exit 0;
+
+sub HELP_MESSAGE {
+	print <<EOT;
+Usage: tdcli [ -a 1234 [ -p | -t [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
+Pull data from your TD Direct Investing account.
+
+  -a ID                    select account number
+  -p                       show portfolio
+  -t                       list transactions
+  -f YYYY-MM-DD            from date (default: 1st of current month)
+  -t YYYY-MM-DD            to date (default: today)
+EOT
+
+	exit 0;
+}
 
 sub debug {
 	my ($m) = @_;
@@ -93,7 +126,12 @@ sub debug {
 sub login {
 	if (defined($cfg->{_}->{'acct'}) && defined($csrftoken)) {
 		my $info = &fetchJSON(0, URL_BASE . URL_INFO);
-		return ($cfg->{_}->{'acct'}, $csrftoken, $info)
+
+		my %accts;
+		$accts{$_->{accountId}} = $_
+			foreach (@{$info->{accounts}});
+
+		return ($cfg->{_}->{'acct'}, $csrftoken, %accts)
 			if (defined($info));
 	}
 
@@ -163,7 +201,11 @@ sub login {
 
 	my $info = &fetchJSON(0, URL_BASE . URL_INFO, CSRFTOKEN => $query{CSRFTOKEN});
 
-	return ($cfg->{_}->{'acct'}, $query{CSRFTOKEN}, $info)
+	my %accts;
+	$accts{$_->{accountId}} = $_
+		foreach (@{$info->{accounts}});
+
+	return ($cfg->{_}->{'acct'}, $query{CSRFTOKEN}, %accts)
 }
 
 sub fetchJSON {
@@ -175,11 +217,10 @@ sub fetchJSON {
 		if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1);
 
 	$url =~ s/%USERACCT%/$cfg->{_}->{'acct'}/g;
-	$url =~ s/%ACCT%/$acct/g
-		unless (defined($acct));
+	$url =~ s/%ACCT%/$acct/g;
 
 	my $uri = URI->new($url);
-	$qs{CSRFTOKEN => $csrftoken}
+	$qs{CSRFTOKEN} = $csrftoken
 		if (defined($csrftoken));
 	$uri->query_form(%qs);
 
