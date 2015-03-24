@@ -14,7 +14,7 @@ use URI;
 use JSON;
 use Getopt::Std;
 use Time::Piece;
-use Date::Calc qw(Delta_Days);
+use Date::Calc qw(Today Delta_Days Add_Delta_YMD);
 
 use Data::Dumper;
 
@@ -34,14 +34,19 @@ $opts{f} = substr(localtime->ymd, 0, 8) . '01'
 	unless (defined($opts{f}));
 die 'from date must be of the format YYYY-MM-DD'
 	unless ($opts{f} =~ /^[0-9]{4}-[01][0-9]-[0-3][0-9]$/);
+$opts{f} = [ split(/-/, $opts{f}, 3) ];
 
 $opts{t} = localtime->ymd
 	unless (defined($opts{t}));
 die 'to date must be of the format YYYY-MM-DD'
 	unless ($opts{t} =~ /^[0-9]{4}-[01][0-9]-[0-3][0-9]$/);
+$opts{t} = [ split(/-/, $opts{t}, 3) ];
+
+die 'to date is in the future'
+	unless (Delta_Days(@{$opts{t}}, Today()) >= 0);
 
 die 'from date is later than to date'
-	unless (Delta_Days(split(/-/, $opts{f}, 3), split(/-/, $opts{t}, 3)) > 0);
+	unless (Delta_Days(@{$opts{f}}, @{$opts{t}}) >= 0);
 
 mkdir "$ENV{HOME}/.tdcli"
 	unless (-d "$ENV{HOME}/.tdcli");
@@ -110,12 +115,24 @@ if ($opts{P}) {
 
 	print Dumper $j;
 } elsif ($opts{T}) {
-	my $f = substr($opts{f}, 8, 2) . '/' . substr($opts{f}, 5, 2) . '/' . substr($opts{f}, 0, 4);
-	my $t = substr($opts{t}, 8, 2) . '/' . substr($opts{t}, 5, 2) . '/' . substr($opts{t}, 0, 4);
+	my @trans;
 
-	my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN, fromDate => $f, toDate => $t);
+	my @f = @{$opts{f}};
+	my @t = Add_Delta_YMD(@f, 0, 18, 0);
+	while (Delta_Days(@f, @{$opts{t}}) >= 0) {
+		@t = @{$opts{t}}
+			unless (Delta_Days(@t, @{$opts{t}}) >= 0);
 
-	print Dumper $j;
+		my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN,
+				fromDate => join('/', reverse @f), toDate => join('/', reverse @t));
+
+		push @trans, @{$j->{statementLines}};
+
+		@f = Add_Delta_YMD(@f, 0, 18, 0);
+		@t = Add_Delta_YMD(@f, 0, 18, 0);
+	}
+
+	print Dumper \@trans;
 }
 
 exit 0;
