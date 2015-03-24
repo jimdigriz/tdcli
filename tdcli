@@ -123,7 +123,7 @@ if ($opts{P}) {
 	my $j = &fetchJSON($opts{a}, URL_BASE . URL_PORT);
 
 	@data = @{$j->{portfolios}->{ALL}};
-	%fields = map { $_, 1 } map { keys $_ } @data;
+	%fields = map { $_, 1 } map { keys %$_ } @data;
 } elsif ($opts{T}) {
 	my @f = @{$opts{f}};
 	my @t = Add_Delta_YMD(@f, 0, 18, 0);
@@ -140,7 +140,7 @@ if ($opts{P}) {
 		@t = Add_Delta_YMD(@f, 0, 18, 0);
 	}
 
-	%fields = map { $_, 1 } map { keys $_ } @data;
+	%fields = map { $_, 1 } map { keys %$_ } @data;
 
 	for (my $i = 0; $i < @data; $i++) {
 		$data[$i]{symbol} = 'LON:' . $data[$i]{symbol}
