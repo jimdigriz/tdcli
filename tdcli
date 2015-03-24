@@ -141,6 +141,13 @@ if ($opts{P}) {
 	}
 
 	%fields = map { $_, 1 } map { keys $_ } @data;
+
+	for (my $i = 0; $i < @data; $i++) {
+		$data[$i]{symbol} = 'LON:' . $data[$i]{symbol}
+			if (defined($data[$i]{symbol}) && $data[$i]{symbol} ne '');
+		$data[$i]{price} *= 100
+			if (defined($data[$i]{price}));
+	}
 }
 
 $csv->print(\*STDOUT, [ keys %fields ]);
