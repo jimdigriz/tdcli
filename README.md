@@ -13,6 +13,7 @@
 
 Start off by fetching the source which requires you to [have git installed on your workstation](http://git-scm.com/book/en/Getting-Started-Installing-Git):
 
+    cd /usr/src/
     git clone https://github.com/jimdigriz/tdcli.git
     cd tdcli
 
@@ -28,10 +29,10 @@ You need to create a configuration file with your account details in it:
     mkdir ~/.tdcli
     chmod 0700 ~/.tdcli
     
-    cp example.config ~/.tdcli
-    chmod 0600 ~/.tdcli
+    cp example.config ~/.tdcli/config
+    chmod 0600 ~/.tdcli/config
 
-Now edit the file:
+Now edit the file `~/.tdcli/config`:
 
  * **`debug`:** if set to anything (not commented out) then the HTTP requests will be printed to `STDERR`
  * **`from`:** optionally include your e-mail address in the HTTP requests made
