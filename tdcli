@@ -59,13 +59,13 @@ if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1) {
 $mech->cookie_jar({file => "$ENV{HOME}/.tdcli/cookies.txt", autosave => 1, ignore_discard => 1});
 chmod 0600, "$ENV{HOME}/.tdcli/cookies.txt";
 
-my $csrftoken;
+my ($info, $csrftoken);
 if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $t, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
 	local $/;
 	$csrftoken = <$t>;
 }
 unlink "$ENV{HOME}/.tdcli/csrftoken";
-($cfg->{_}->{'acct'}, $csrftoken) = &login($csrftoken);
+($cfg->{_}->{'acct'}, $csrftoken, $info) = &login($csrftoken);
 
 # TODO only write when changed
 $cfg->write("$ENV{HOME}/.tdcli/config");
@@ -76,8 +76,6 @@ open my $t, '>', "$ENV{HOME}/.tdcli/csrftoken";
 chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
 print $t $csrftoken;
 close $t;
-
-my $info = &fetchJSON(0, URL_BASE . URL_INFO);
 
 print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
 printf " * %s {%s}: %s\n", $_->{accountId}, $_->{type}, $_->{description}
@@ -93,8 +91,11 @@ sub debug {
 }
 
 sub login {
-	return ($cfg->{_}->{'acct'}, $csrftoken)
-		if (defined($cfg->{_}->{'acct'}) && defined($csrftoken) && defined(&fetchJSON(0, URL_BASE . URL_INFO)));
+	if (defined($cfg->{_}->{'acct'}) && defined($csrftoken)) {
+		my $info = &fetchJSON(0, URL_BASE . URL_INFO);
+		return ($cfg->{_}->{'acct'}, $csrftoken, $info)
+			if (defined($info));
+	}
 
 	my $m = $mech->clone;
 
@@ -160,7 +161,9 @@ sub login {
 	die 'cannot find CSRFTOKEN'
 		unless (defined($query{CSRFTOKEN}));
 
-	return ($useracct, $query{CSRFTOKEN});
+	my $info = &fetchJSON(0, URL_BASE . URL_INFO, CSRFTOKEN => $query{CSRFTOKEN});
+
+	return ($cfg->{_}->{'acct'}, $query{CSRFTOKEN}, $info)
 }
 
 sub fetchJSON {
@@ -176,7 +179,9 @@ sub fetchJSON {
 		unless (defined($acct));
 
 	my $uri = URI->new($url);
-	$uri->query_form(CSRFTOKEN => $csrftoken, %qs);
+	$qs{CSRFTOKEN => $csrftoken}
+		if (defined($csrftoken));
+	$uri->query_form(%qs);
 
 	my $r = $m->get($uri);
 	die 'unable to fetch info page: ' . $r->status_line
