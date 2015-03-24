@@ -21,7 +21,6 @@ use constant URL_BASE	=> 'https://secure.tddirectinvesting.co.uk/webbroker2';
 use constant URL_LOGIN	=> 'login.jsp';
 use constant URL_STEPUP	=> 'displayStepUpQuestion.sp';
 use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
-use constant URL_DETAIL	=> '/customers/%USERACCT%/account-summary/default-currency.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
 use constant URL_TRANS	=> '/webbroker2/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
 
@@ -81,7 +80,9 @@ close $t;
 
 my $info = &fetchJSON(URL_BASE . URL_INFO);
 
-print Dumper $info;
+print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
+printf " * %s {%s}: %s\n", $_->{accountId}, $_->{type}, $_->{description}
+	foreach (@{$info->{accounts}});
 
 exit 0;
 
@@ -167,5 +168,10 @@ sub fetchJSON {
 	die 'not allowed to fetch info page: ' . $r->status_line
 		if (is_client_error($r->code));
 
-	return from_json($r->decoded_content);
+	my $json = from_json $r->decoded_content;
+
+	die 'unable to parse JSON'
+		unless (defined($json));
+
+	return $json;
 }
