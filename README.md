@@ -13,7 +13,7 @@
 
 Start off by fetching the source which requires you to [have git installed on your workstation](http://git-scm.com/book/en/Getting-Started-Installing-Git):
 
-    cd /usr/src/
+    cd /usr/src
     git clone https://github.com/jimdigriz/tdcli.git
     cd tdcli
 
