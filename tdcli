@@ -1,0 +1,171 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use v5.14;
+
+use File::stat;
+use Fcntl qw(:mode);
+use Config::Tiny;
+use WWW::Mechanize;
+use HTTP::Status qw(is_client_error is_server_error);
+use URI;
+use JSON;
+
+use Data::Dumper;
+
+my $VERSION = '0.1';
+
+use constant URL_BASE	=> 'https://secure.tddirectinvesting.co.uk/webbroker2';
+use constant URL_LOGIN	=> 'login.jsp';
+use constant URL_STEPUP	=> 'displayStepUpQuestion.sp';
+use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
+use constant URL_DETAIL	=> '/customers/%USERACCT%/account-summary/default-currency.sp';
+use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
+use constant URL_TRANS	=> '/webbroker2/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
+
+mkdir "$ENV{HOME}/.tdcli"
+	unless (-d "$ENV{HOME}/.tdcli");
+chmod 0700, "$ENV{HOME}/.tdcli";
+
+die '~/.tdcli/config does not exist'
+	unless (-f "$ENV{HOME}/.tdcli/config");
+
+my $mode = stat("$ENV{HOME}/.tdcli/config")->mode;
+if (($mode & S_IRGRP) && ($mode & S_IROTH)) {
+	warn '~/.tdcli/config is not chmod 0600, fixing';
+	chmod 0600, "$ENV{HOME}/.tdcli/config";
+}
+
+my $cfg = Config::Tiny->read("$ENV{HOME}/.tdcli/config")
+	or die 'unable to open config: ' . Config::Tiny->errstr;
+
+die 'missing user/pass attributes in ~/.tdcli/config'
+	unless (defined($cfg->{_}->{user}) && defined($cfg->{_}->{pass}));
+
+my $mech = WWW::Mechanize->new;
+$mech->timeout(10);
+$mech->env_proxy;
+$mech->agent("tdcli/$VERSION (+https://github.com/jimdigriz/tdcli; " . $mech->_agent . ')');
+$mech->default_header('Accept-Encoding' => scalar HTTP::Message::decodable());
+$mech->from($cfg->{_}->{from})
+	if (defined($cfg->{_}->{from}));
+
+if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1) {
+        warn 'debugging enabled, you will see the HTTPS requests in the clear!';
+
+        $mech->add_handler('request_send',  sub { my $r = $_[0]->clone; $r->decode; print STDERR "$_\n" foreach split /\n/, $r->dump });
+        $mech->add_handler('response_done', sub { my $r = $_[0]->clone; $r->decode; print STDERR "$_\n" foreach split /\n/, $r->dump });
+}
+
+$mech->cookie_jar({file => "$ENV{HOME}/.tdcli/cookies.txt", autosave => 1, ignore_discard => 1});
+chmod 0600, "$ENV{HOME}/.tdcli/cookies.txt";
+
+my $csrftoken;
+if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $t, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
+	local $/;
+	$csrftoken = <$t>;
+}
+unlink "$ENV{HOME}/.tdcli/csrftoken";
+($cfg->{_}->{'acct'}, $csrftoken) = &login()
+	unless ($cfg->{_}->{'acct'} && defined($csrftoken));
+
+$cfg->write("$ENV{HOME}/.tdcli/config");
+chmod 0600, "$ENV{HOME}/.tdcli/config";
+
+open my $t, '>', "$ENV{HOME}/.tdcli/csrftoken";
+chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
+print $t $csrftoken;
+close $t;
+
+my $info = &fetchJSON(URL_BASE . URL_INFO);
+
+print Dumper $info;
+
+exit 0;
+
+sub login {
+	my $m = $mech->clone;
+
+	# deal with unsupported browser
+	$m->agent('Mozilla/5.0 (X11; Linux x86_64; rv:36.0) Gecko/20100101 Firefox/36.0 Iceweasel/36.0.4');
+
+	my $r = $m->get(URL_BASE . URL_LOGIN);
+	die 'unable to fetch login page: ' . $r->status_line
+		if (is_server_error($r->code));
+
+	die 'not allowed to fetch login page: ' . $r->status_line
+		if (is_client_error($r->code));
+
+	my $f = $m->form_name('logon');
+	die "'login' form not found"
+		unless (defined($f));
+
+	$m->field('username', $cfg->{_}->{user});
+	my $pass = '';
+	for my $p ('first', 'second', 'third') {
+		my $l = substr $cfg->{_}->{pass}, $f->find_input("${p}Challenge")->value - 1, 1;
+
+		$m->field("${p}Response", $l);
+		$pass .= $l;
+	}
+	$m->field('password', $pass);
+	$m->field('deviceFingerprint', '{"tz":0,"local":false,"session":false,"global":false,"user":false,"db":false}');
+
+	$r = $m->click;
+	die 'unable to login: ' . $r->status_line
+		if (is_server_error($r->code));
+
+	die 'login failed: ' . $r->status_line
+		if (is_client_error($r->code));
+
+	if ($m->uri eq URL_BASE . URL_STEPUP) {
+		$r->decoded_content =~ /<form .*name="secQuestions".*What is your memorable ([\w]+)\?.*<\/form>/ms;
+
+		$m->form_name('secQuestions');
+		$m->field('answer', $cfg->{stepup}->{$1});
+
+		$r = $m->click;
+		die 'unable to stepup: ' . $r->status_line
+			if (is_server_error($r->code));
+
+		die 'stepup failed: ' . $r->status_line
+			if (is_client_error($r->code));
+	}
+
+	my $link = $m->find_link(tag => 'frame', name => 'contentFrame');
+	die 'unable to parse logged in page'
+		unless (defined($link));
+
+	my $uri = URI->new($link->URI->fragment);
+	my $useracct = ($uri->path_segments)[2];
+	die 'cannot find user account id'
+		unless (defined($useracct));
+
+	my %query = map { split /=/, $uri->query, 2 } split /&/, $uri->query, 2;
+	die 'cannot find CSRFTOKEN'
+		unless (defined($query{CSRFTOKEN}));
+
+	return ($useracct, $query{CSRFTOKEN});
+}
+
+sub fetchJSON {
+	my ($url, $acct) = @_;
+
+	$url =~ s/%USERACCT%/$cfg->{_}->{'acct'}/g;
+	$url =~ s/%ACCT%/$acct/g
+		unless (defined($acct));
+
+	my $uri = URI->new($url);
+	$uri->query_form(CSRFTOKEN => $csrftoken);
+
+	my $r = $mech->get($uri);
+	die 'unable to fetch info page: ' . $r->status_line
+		if (is_server_error($r->code));
+
+	die 'not allowed to fetch info page: ' . $r->status_line
+		if (is_client_error($r->code));
+
+	return from_json($r->decoded_content);
+}
