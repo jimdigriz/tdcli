@@ -156,8 +156,8 @@ Usage: tdcli [ -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
 Pull data from your TD Direct Investing account.
 
   -a ID                    select account number
-  -P                       show portfolio
-  -T                       list transactions
+  -P                       output CSV of portfolio
+  -T                       output CSV of transactions
   -f YYYY-MM-DD            from date (default: 1st of current month)
   -t YYYY-MM-DD            to date (default: today)
 EOT

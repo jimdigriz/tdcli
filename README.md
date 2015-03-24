@@ -57,7 +57,7 @@ The tool has some basic built in help to show its other functionality:
     Pull data from your TD Direct Investing account.
     
       -a ID                    select account number
-      -P                       show portfolio
-      -T                       list transactions
+      -P                       output CSV of portfolio
+      -T                       output CSV of transactions
       -f YYYY-MM-DD            from date (default: 1st of current month)
       -t YYYY-MM-DD            to date (default: today)
