@@ -103,12 +103,15 @@ chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
 print $T $csrftoken;
 close $T;
 
-print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
-printf " * %s {%s}: %s\n", $_, $accts{$_}{type}, $accts{$_}{description}
+unless (defined($opts{P}) || defined($opts{T})) {
+	print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
+	printf " * %s {%s}: %s\n", $_, $accts{$_}{type}, $accts{$_}{description}
 		foreach (keys %accts);
+	exit 0;
+}
 
 die 'need to supply valid account id'
-	if ((defined($opts{P}) || defined($opts{T})) && !(defined($opts{a}) && defined($accts{$opts{a}})));
+	unless (defined($opts{a}) && defined($accts{$opts{a}}));
 
 if ($opts{P}) {
 	my $j = &fetchJSON($opts{a}, URL_BASE . URL_PORT);
