@@ -18,8 +18,8 @@ use Data::Dumper;
 my $VERSION = '0.1';
 
 use constant URL_BASE	=> 'https://secure.tddirectinvesting.co.uk/webbroker2';
-use constant URL_LOGIN	=> 'login.jsp';
-use constant URL_STEPUP	=> 'displayStepUpQuestion.sp';
+use constant URL_LOGIN	=> '/login.jsp';
+use constant URL_STEPUP	=> '/displayStepUpQuestion.sp';
 use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
 use constant URL_TRANS	=> '/webbroker2/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
@@ -52,10 +52,8 @@ $mech->from($cfg->{_}->{from})
 	if (defined($cfg->{_}->{from}));
 
 if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1) {
-        warn 'debugging enabled, you will see the HTTPS requests in the clear!';
-
-        $mech->add_handler('request_send',  sub { my $r = $_[0]->clone; $r->decode; print STDERR "$_\n" foreach split /\n/, $r->dump });
-        $mech->add_handler('response_done', sub { my $r = $_[0]->clone; $r->decode; print STDERR "$_\n" foreach split /\n/, $r->dump });
+	warn 'debugging enabled, you will see the HTTPS requests in the clear!';
+	&debug($mech);
 }
 
 $mech->cookie_jar({file => "$ENV{HOME}/.tdcli/cookies.txt", autosave => 1, ignore_discard => 1});
@@ -67,18 +65,19 @@ if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $t, '<', "$ENV{HOME}/.tdcli/csrf
 	$csrftoken = <$t>;
 }
 unlink "$ENV{HOME}/.tdcli/csrftoken";
-($cfg->{_}->{'acct'}, $csrftoken) = &login()
-	unless ($cfg->{_}->{'acct'} && defined($csrftoken));
+($cfg->{_}->{'acct'}, $csrftoken) = &login($csrftoken);
 
+# TODO only write when changed
 $cfg->write("$ENV{HOME}/.tdcli/config");
 chmod 0600, "$ENV{HOME}/.tdcli/config";
 
+# TODO only write when changed
 open my $t, '>', "$ENV{HOME}/.tdcli/csrftoken";
 chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
 print $t $csrftoken;
 close $t;
 
-my $info = &fetchJSON(URL_BASE . URL_INFO);
+my $info = &fetchJSON(0, URL_BASE . URL_INFO);
 
 print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
 printf " * %s {%s}: %s\n", $_->{accountId}, $_->{type}, $_->{description}
@@ -86,8 +85,21 @@ printf " * %s {%s}: %s\n", $_->{accountId}, $_->{type}, $_->{description}
 
 exit 0;
 
+sub debug {
+	my ($m) = @_;
+
+       	$m->add_handler('request_send',  sub { my $r = $_[0]->clone; $r->decode; print STDERR "$_\n" foreach split /\n/, $r->dump });
+       	$m->add_handler('response_done', sub { my $r = $_[0]->clone; $r->decode; print STDERR "$_\n" foreach split /\n/, $r->dump });
+}
+
 sub login {
+	return ($cfg->{_}->{'acct'}, $csrftoken)
+		if (defined($cfg->{_}->{'acct'}) && defined($csrftoken) && defined(&fetchJSON(0, URL_BASE . URL_INFO)));
+
 	my $m = $mech->clone;
+
+	&debug($m)
+		if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1);
 
 	# deal with unsupported browser
 	$m->agent('Mozilla/5.0 (X11; Linux x86_64; rv:36.0) Gecko/20100101 Firefox/36.0 Iceweasel/36.0.4');
@@ -152,21 +164,28 @@ sub login {
 }
 
 sub fetchJSON {
-	my ($url, $acct) = @_;
+	my ($acct, $url, %qs) = @_;
+
+	my $m = $mech->clone;
+
+	&debug($m)
+		if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1);
 
 	$url =~ s/%USERACCT%/$cfg->{_}->{'acct'}/g;
 	$url =~ s/%ACCT%/$acct/g
 		unless (defined($acct));
 
 	my $uri = URI->new($url);
-	$uri->query_form(CSRFTOKEN => $csrftoken);
+	$uri->query_form(CSRFTOKEN => $csrftoken, %qs);
 
-	my $r = $mech->get($uri);
+	my $r = $m->get($uri);
 	die 'unable to fetch info page: ' . $r->status_line
 		if (is_server_error($r->code));
 
 	die 'not allowed to fetch info page: ' . $r->status_line
 		if (is_client_error($r->code));
+
+	return if ($m->uri =~ /\/error-pages\//);
 
 	my $json = from_json $r->decoded_content;
 
