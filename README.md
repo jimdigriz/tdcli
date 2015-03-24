@@ -52,11 +52,11 @@ Just running the tool with no parameters will list your accounts:
 The tool has some basic built in help to show its other functionality:
 
     $ ./tdcli --help
-    Usage: tdcli [ -a 1234 [ -p | -t [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
+    Usage: tdcli [ -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
     Pull data from your TD Direct Investing account.
     
       -a ID                    select account number
-      -p                       show portfolio
-      -t                       list transactions
+      -P                       show portfolio
+      -T                       list transactions
       -f YYYY-MM-DD            from date (default: 1st of current month)
       -t YYYY-MM-DD            to date (default: today)

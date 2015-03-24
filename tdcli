@@ -13,6 +13,7 @@ use HTTP::Status qw(is_client_error is_server_error);
 use URI;
 use JSON;
 use Getopt::Std;
+use Time::Piece;
 use Date::Parse;
 
 use Data::Dumper;
@@ -24,10 +25,20 @@ use constant URL_LOGIN	=> '/login.jsp';
 use constant URL_STEPUP	=> '/displayStepUpQuestion.sp';
 use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
-use constant URL_TRAN	=> '/webbroker2/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
+use constant URL_TRAN	=> '/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
 
 my %opts;
-getopts('pta:f:t:', \%opts);
+getopts('PTa:f:t:', \%opts);
+
+$opts{f} = substr(localtime->ymd, 0, 8) . '01'
+	unless (defined($opts{f}));
+die 'from date must be of the format YYYY-MM-DD'
+	unless ($opts{f} =~ /^[0-9]{4}-[01][0-9]-[0-3][0-9]$/);
+
+$opts{t} = localtime->ymd
+	unless (defined($opts{t}));
+die 'to date must be of the format YYYY-MM-DD'
+	unless ($opts{t} =~ /^[0-9]{4}-[01][0-9]-[0-3][0-9]$/);
 
 mkdir "$ENV{HOME}/.tdcli"
 	unless (-d "$ENV{HOME}/.tdcli");
@@ -65,9 +76,9 @@ $mech->cookie_jar({file => "$ENV{HOME}/.tdcli/cookies.txt", autosave => 1, ignor
 chmod 0600, "$ENV{HOME}/.tdcli/cookies.txt";
 
 my $csrftoken;
-if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $t, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
+if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $T, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
 	local $/;
-	$csrftoken = <$t>;
+	$csrftoken = <$T>;
 }
 unlink "$ENV{HOME}/.tdcli/csrftoken";
 
@@ -79,23 +90,28 @@ $cfg->write("$ENV{HOME}/.tdcli/config");
 chmod 0600, "$ENV{HOME}/.tdcli/config";
 
 # TODO only write when changed
-open my $t, '>', "$ENV{HOME}/.tdcli/csrftoken";
+open my $T, '>', "$ENV{HOME}/.tdcli/csrftoken";
 chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
-print $t $csrftoken;
-close $t;
+print $T $csrftoken;
+close $T;
 
 print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
 printf " * %s {%s}: %s\n", $_, $accts{$_}{type}, $accts{$_}{description}
 		foreach (keys %accts);
 
 die 'need to supply valid account id'
-	if ((defined($opts{p}) || defined($opts{t})) && !(defined($opts{a}) && defined($accts{$opts{a}})));
+	if ((defined($opts{P}) || defined($opts{T})) && !(defined($opts{a}) && defined($accts{$opts{a}})));
 
-if ($opts{p}) {
+if ($opts{P}) {
 	my $j = &fetchJSON($opts{a}, URL_BASE . URL_PORT);
+
 	print Dumper $j;
-} elsif ($opts{t}) {
-	my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN);
+} elsif ($opts{T}) {
+	my $f = substr($opts{f}, 8, 2) . '/' . substr($opts{f}, 5, 2) . '/' . substr($opts{f}, 0, 4);
+	my $t = substr($opts{t}, 8, 2) . '/' . substr($opts{t}, 5, 2) . '/' . substr($opts{t}, 0, 4);
+
+	my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN, fromDate => $f, toDate => $t);
+
 	print Dumper $j;
 }
 
@@ -103,12 +119,12 @@ exit 0;
 
 sub HELP_MESSAGE {
 	print <<EOT;
-Usage: tdcli [ -a 1234 [ -p | -t [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
+Usage: tdcli [ -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
 Pull data from your TD Direct Investing account.
 
   -a ID                    select account number
-  -p                       show portfolio
-  -t                       list transactions
+  -P                       show portfolio
+  -T                       list transactions
   -f YYYY-MM-DD            from date (default: 1st of current month)
   -t YYYY-MM-DD            to date (default: today)
 EOT
