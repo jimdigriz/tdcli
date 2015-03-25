@@ -165,7 +165,7 @@ Pull data from your TD Direct Investing account.
   -a ID                    select account number
   -P                       output CSV of portfolio
   -T                       output CSV of transactions
-  -f YYYY-MM-DD            from date (default: 1st of current month)
+  -f YYYY-MM-DD            from date (default: first of current month)
   -t YYYY-MM-DD            to date (default: today)
 EOT
 

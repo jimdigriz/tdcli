@@ -1,5 +1,11 @@
 `tdcli` lets you pull data from your [TD Direct Investing](http://www.tddirectinvesting.co.uk/) account.
 
+## Issues
+
+ * fixup stock symbols properly (not just wholesale prepending of `LON:`)
+ * pull in contract references for the transactions
+ * prompt for password
+
 # Pre-flight
 
 `tdcli` requires [Perl 5.14 or higher](https://www.perl.org/) and the following libraries:
@@ -60,5 +66,5 @@ The tool has some basic built in help to show its other functionality:
       -a ID                    select account number
       -P                       output CSV of portfolio
       -T                       output CSV of transactions
-      -f YYYY-MM-DD            from date (default: 1st of current month)
+      -f YYYY-MM-DD            from date (default: first of current month)
       -t YYYY-MM-DD            to date (default: today)
