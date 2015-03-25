@@ -5,6 +5,7 @@
  * fixup stock symbols properly (not just wholesale prepending of `LON:`)
  * pull in contract references for the transactions
  * prompt for password
+ * move acct/csrftoken saving into login function
 
 # Pre-flight
 
