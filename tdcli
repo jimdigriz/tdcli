@@ -27,6 +27,7 @@ use constant URL_STEPUP	=> '/displayStepUpQuestion.sp';
 use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
 use constant URL_TRAN	=> '/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
+use constant URL_ORDER	=> '/orders/%ORDER%/orderDetail/view.sp';
 
 my %opts;
 getopts('PTa:f:t:', \%opts);
@@ -92,7 +93,7 @@ if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $T, '<', "$ENV{HOME}/.tdcli/csrf
 unlink "$ENV{HOME}/.tdcli/csrftoken";
 
 my %accts;
-($csrftoken, %accts) = &login($csrftoken);
+($csrftoken, %accts) = &login();
 
 # TODO only write when changed
 $cfg->write("$ENV{HOME}/.tdcli/config");
@@ -120,7 +121,7 @@ $csv->eol("\r\n");
 my %fields;
 my @data;
 if ($opts{P}) {
-	my $j = &fetchJSON($opts{a}, URL_BASE . URL_PORT);
+	my $j = &fetchJSON(URL_BASE . URL_PORT, { USERACCT => $cfg->{_}->{'acct'}, ACCT => $opts{a} }, { CSRFTOKEN => $csrftoken });
 
 	@data = @{$j->{portfolios}->{ALL}};
 	%fields = map { $_, 1 } map { keys %$_ } @data;
@@ -131,8 +132,15 @@ if ($opts{P}) {
 		@t = @{$opts{t}}
 			unless (Delta_Days(@t, @{$opts{t}}) >= 0);
 
-		my $j = &fetchJSON($opts{a}, URL_BASE . URL_TRAN,
-				fromDate => join('/', reverse @f), toDate => join('/', reverse @t));
+		my $j = &fetchJSON(URL_BASE . URL_TRAN,
+				{
+					USERACCT => $cfg->{_}->{'acct'},
+					ACCT => $opts{a},
+				}, {
+					CSRFTOKEN => $csrftoken,
+					fromDate => join('/', reverse @f),
+					toDate => join('/', reverse @t),
+				});
 
 		push @data, @{$j->{statementLines}};
 
@@ -181,7 +189,7 @@ sub debug {
 
 sub login {
 	if (defined($cfg->{_}->{'acct'}) && defined($csrftoken)) {
-		my $info = &fetchJSON(0, URL_BASE . URL_INFO);
+		my $info = &fetchJSON(URL_BASE . URL_INFO, { USERACCT => $cfg->{_}->{'acct'} }, { CSRFTOKEN => $csrftoken });
 
 		my %accts;
 		$accts{$_->{accountId}} = $_
@@ -255,7 +263,7 @@ sub login {
 	die 'cannot find CSRFTOKEN'
 		unless (defined($query{CSRFTOKEN}));
 
-	my $info = &fetchJSON(0, URL_BASE . URL_INFO, CSRFTOKEN => $query{CSRFTOKEN});
+	my $info = &fetchJSON(URL_BASE . URL_INFO, { USERACCT => $cfg->{_}->{'acct'} }, { CSRFTOKEN => $query{CSRFTOKEN} });
 
 	my %accts;
 	$accts{$_->{accountId}} = $_
@@ -264,21 +272,19 @@ sub login {
 	return ($query{CSRFTOKEN}, %accts)
 }
 
-sub fetchJSON {
-	my ($acct, $url, %qs) = @_;
+sub fetchHTTP {
+	my ($url, $macros, $qs) = @_;
 
 	my $m = $mech->clone;
 
 	&debug($m)
 		if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1);
 
-	$url =~ s/%USERACCT%/$cfg->{_}->{'acct'}/g;
-	$url =~ s/%ACCT%/$acct/g;
+	$url =~ s/%$_%/${\$macros->{$_}}/g
+		foreach keys %$macros;
 
 	my $uri = URI->new($url);
-	$qs{CSRFTOKEN} = $csrftoken
-		if (defined($csrftoken));
-	$uri->query_form(%qs);
+	$uri->query_form(%$qs);
 
 	my $r = $m->get($uri);
 	die 'unable to fetch info page: ' . $r->status_line
@@ -289,7 +295,15 @@ sub fetchJSON {
 
 	return if ($m->uri =~ /\/error-pages\//);
 
-	my $json = from_json $r->decoded_content;
+	return $r;
+}
+
+sub fetchJSON {
+	my ($url, $macros, $qs) = @_;
+
+	my $http = &fetchHTTP(@_);
+
+	my $json = from_json $http->decoded_content;
 
 	die 'unable to parse JSON'
 		unless (defined($json));
