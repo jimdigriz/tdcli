@@ -1,4 +1,4 @@
-`tdcli` lets you pull data from your [TD Direct Investing](http://www.tddirectinvesting.co.uk/) account.
+`tdcli` lets you export transactions from your [TD Direct Investing](http://www.tddirectinvesting.co.uk/) account.
 
 ## Issues
 
