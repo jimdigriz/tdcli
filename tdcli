@@ -187,9 +187,9 @@ if ($opts{P}) {
 	%fields = map { $_, 1 } map { keys %$_ } @data;
 }
 
-$csv->print(\*STDOUT, [ keys %fields ]);
+$csv->print(\*STDOUT, [ sort keys %fields ]);
 foreach my $d (@data) {
-	$csv->print(\*STDOUT, [ map { $d->{$_} } keys %fields ]);
+	$csv->print(\*STDOUT, [ map { $d->{$_} } sort keys %fields ]);
 }
 
 exit 0;
