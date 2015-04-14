@@ -16,6 +16,7 @@ use Getopt::Std;
 use Time::Piece;
 use Date::Calc qw(Today Delta_Days Add_Delta_YMD);
 use Text::CSV;
+use HTML::Parser;
 
 use Data::Dumper;
 
@@ -118,6 +119,10 @@ die 'need to supply valid account id'
 my $csv = Text::CSV->new;
 $csv->eol("\r\n");
 
+# HTML::Parser state
+my @o;
+my $depth;
+
 my %fields;
 my @data;
 if ($opts{P}) {
@@ -142,6 +147,37 @@ if ($opts{P}) {
 					toDate => join('/', reverse @t),
 				});
 
+		for (my $i = 0; $i < @{$j->{statementLines}}; $i++) {
+			next unless (defined($j->{statementLines}[$i]{contractReference})
+					&& $j->{statementLines}[$i]{contractReference} ne '');
+
+			my $order = &fetchHTTP(URL_BASE . URL_ORDER,
+				{
+					USERACCT => $cfg->{_}->{'acct'},
+					ACCT => $opts{a},
+					ORDER => $j->{statementLines}[$i]{contractReference},
+				}, {
+					CSRFTOKEN => $csrftoken,
+				});
+
+			my $p = HTML::Parser->new(
+				start_h	=> [ \&parse_cb, 'event,tagname,attr' ],
+				end_h	=> [ \&parse_cb, 'event,tagname,attr' ],
+				text_h	=> [ \&parse_cb, 'event,text' ],
+			);
+
+			@o = ();
+			$depth = 0;
+			$p->parse($order->decoded_content);
+
+			my %table = @o;
+			foreach (keys %table) {
+				$table{$_} =~ s/,//g
+					if ($table{$_} =~ s/^&(?:[a-z]+|#[0-9]+);(([0-9]+,)*[0-9]+\.[0-9]*)$/$1/);
+				$j->{statementLines}[$i]{"ORDER $_"} = $table{$_};
+			}
+		}
+
 		push @data, @{$j->{statementLines}};
 
 		@f = Add_Delta_YMD(@f, 0, 18, 0);
@@ -149,13 +185,6 @@ if ($opts{P}) {
 	}
 
 	%fields = map { $_, 1 } map { keys %$_ } @data;
-
-	for (my $i = 0; $i < @data; $i++) {
-		$data[$i]{symbol} = 'LON:' . $data[$i]{symbol}
-			if (defined($data[$i]{symbol}) && $data[$i]{symbol} ne '');
-		$data[$i]{price} *= 100
-			if (defined($data[$i]{price}));
-	}
 }
 
 $csv->print(\*STDOUT, [ keys %fields ]);
@@ -309,4 +338,35 @@ sub fetchJSON {
 		unless (defined($json));
 
 	return $json;
+}
+
+sub parse_cb {
+	given ($_[0]) {
+		when ('start') {
+			return unless ($_[1] eq 'div');
+			return unless (defined($_[2]->{class}));
+
+			given ($depth) {
+				when (0) { $depth++ if ($_[2]->{class} eq 'middleWithTitle gradb2t') }
+				when (1) { $depth++ if ($_[2]->{class} eq 'row') }
+				when (2) { $depth++ if ($_[2]->{class} eq 'col-xs-6') }
+			}
+		}
+		when ('end') {
+			return unless ($depth);
+			return unless ($_[1] eq 'div');
+
+			$depth--;
+		}
+		when ('text') {
+			return unless ($depth == 3);
+
+			my $text = $_[1];
+			$text =~ s/^\s*(.*?)\s*$/$1/;
+
+			return if ($text eq '');
+
+			push @o, $text;
+		}
+	}
 }

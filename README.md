@@ -3,9 +3,10 @@
 ## Issues
 
  * fixup stock symbols properly (not just wholesale prepending of `LON:`)
- * pull in contract references for the transactions
+ * requires a 100x as TD exports pounds, Google finance imports pence
  * prompt for password
  * move acct/csrftoken saving into login function
+ * `Error GETing https://secure.tddirectinvesting.co.uk/webbroker2/customers/02510298000/error-pages/invalidsession.jsp: Not Found at ./tdcli line 305`
 
 # Pre-flight
 
@@ -17,6 +18,7 @@
  * [JSON](http://search.cpan.org/~makamaka/JSON/lib/JSON.pm)
  * [Date::Calc](http://search.cpan.org/~stbey/Date-Calc/lib/Date/Calc.pod)
  * [Text::CSV](http://search.cpan.org/~makamaka/Text-CSV/lib/Text/CSV.pm)
+ * [HTML::Parser](http://search.cpan.org/dist/HTML-Parser/Parser.pm)
 
 Start off by fetching the source which requires you to [have git installed on your workstation](http://git-scm.com/book/en/Getting-Started-Installing-Git):
 
