@@ -20,7 +20,9 @@ use HTML::Parser;
 
 use Data::Dumper;
 
-my $VERSION = '0.1';
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+
+our $VERSION = '0.1';
 
 use constant URL_BASE	=> 'https://secure.tddirectinvesting.co.uk/webbroker2';
 use constant URL_LOGIN	=> '/login.jsp';
@@ -70,7 +72,8 @@ my $cfg = Config::Tiny->read("$ENV{HOME}/.tdcli/config")
 die 'missing user/pass attributes in ~/.tdcli/config'
 	unless (defined($cfg->{_}->{user}) && defined($cfg->{_}->{pass}));
 
-my $mech = WWW::Mechanize->new;
+my $mech = WWW::Mechanize->new(autocheck => 0);
+
 $mech->timeout(10);
 $mech->env_proxy;
 $mech->agent("tdcli/$VERSION (+https://github.com/jimdigriz/tdcli; " . $mech->_agent . ')');
@@ -86,25 +89,7 @@ if (defined($cfg->{'_'}->{'debug'}) && $cfg->{'_'}->{'debug'} == 1) {
 $mech->cookie_jar({file => "$ENV{HOME}/.tdcli/cookies.txt", autosave => 1, ignore_discard => 1});
 chmod 0600, "$ENV{HOME}/.tdcli/cookies.txt";
 
-my $csrftoken;
-if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $T, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
-	local $/;
-	$csrftoken = <$T>;
-}
-unlink "$ENV{HOME}/.tdcli/csrftoken";
-
-my %accts;
-($csrftoken, %accts) = &login();
-
-# TODO only write when changed
-$cfg->write("$ENV{HOME}/.tdcli/config");
-chmod 0600, "$ENV{HOME}/.tdcli/config";
-
-# TODO only write when changed
-open my $T, '>', "$ENV{HOME}/.tdcli/csrftoken";
-chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
-print $T $csrftoken;
-close $T;
+my ($csrftoken, %accts) = &login();
 
 unless (defined($opts{P}) || defined($opts{T})) {
 	print "Accounts (${\$cfg->{_}->{'acct'}}):\n";
@@ -196,17 +181,20 @@ exit 0;
 
 sub HELP_MESSAGE {
 	print <<EOT;
-Usage: tdcli [ -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
-Pull data from your TD Direct Investing account.
+Usage: $0 [ -h | -v | -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
+Export transactions from your TD Direct Investing account.
 
   -a ID                    select account number
-  -P                       output CSV of portfolio
-  -T                       output CSV of transactions
-  -f YYYY-MM-DD            from date (default: first of current month)
-  -t YYYY-MM-DD            to date (default: today)
-EOT
 
-	exit 0;
+  -P                       output CSV of portfolio
+
+  -T                       output CSV of transactions
+  -f YYYY-MM-DD            transactions from date (default: first of current month)
+  -t YYYY-MM-DD            transactions until date (default: today)
+
+  --help                   display this help and exit
+  --version                output version information and exit
+EOT
 }
 
 sub debug {
@@ -217,16 +205,25 @@ sub debug {
 }
 
 sub login {
+	my ($csrftoken, %accts);
+	if (-f "$ENV{HOME}/.tdcli/csrftoken" && open(my $T, '<', "$ENV{HOME}/.tdcli/csrftoken")) {
+		local $/;
+		$csrftoken = <$T>;
+	}
+
 	if (defined($cfg->{_}->{'acct'}) && defined($csrftoken)) {
 		my $info = &fetchJSON(URL_BASE . URL_INFO, { USERACCT => $cfg->{_}->{'acct'} }, { CSRFTOKEN => $csrftoken });
 
-		my %accts;
-		$accts{$_->{accountId}} = $_
-			foreach (@{$info->{accounts}});
+		if (defined($info)) {
+			$accts{$_->{accountId}} = $_
+				foreach (@{$info->{accounts}});
 
-		return ($csrftoken, %accts)
-			if (defined($info));
+			return ($csrftoken, %accts)
+				if (defined($info));
+		}
 	}
+
+	unlink "$ENV{HOME}/.tdcli/csrftoken";
 
 	my $m = $mech->clone;
 
@@ -284,21 +281,34 @@ sub login {
 		unless (defined($link));
 
 	my $uri = URI->new($link->URI->fragment);
-	$cfg->{_}->{'acct'} = ($uri->path_segments)[2];
+
+	my $acctid = ($uri->path_segments)[2];
 	die 'cannot find user account id'
-		unless (defined($cfg->{_}->{'acct'}));
+		unless (defined($acctid));
+
+	if ($acctid != $cfg->{_}->{'acct'}) {
+		$cfg->{_}->{'acct'} = $acctid;
+		$cfg->write("$ENV{HOME}/.tdcli/config");
+		chmod 0600, "$ENV{HOME}/.tdcli/config";
+	}
 
 	my %query = map { split /=/, $uri->query, 2 } split /&/, $uri->query, 2;
 	die 'cannot find CSRFTOKEN'
 		unless (defined($query{CSRFTOKEN}));
 
-	my $info = &fetchJSON(URL_BASE . URL_INFO, { USERACCT => $cfg->{_}->{'acct'} }, { CSRFTOKEN => $query{CSRFTOKEN} });
+	$csrftoken = $query{CSRFTOKEN};
 
-	my %accts;
+	my $info = &fetchJSON(URL_BASE . URL_INFO, { USERACCT => $cfg->{_}->{'acct'} }, { CSRFTOKEN => $csrftoken });
+
 	$accts{$_->{accountId}} = $_
 		foreach (@{$info->{accounts}});
 
-	return ($query{CSRFTOKEN}, %accts)
+	open my $T, '>', "$ENV{HOME}/.tdcli/csrftoken";
+	chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
+	print $T $csrftoken;
+	close $T;
+
+	return ($csrftoken, %accts)
 }
 
 sub fetchHTTP {
@@ -319,8 +329,7 @@ sub fetchHTTP {
 	die 'unable to fetch info page: ' . $r->status_line
 		if (is_server_error($r->code));
 
-	die 'not allowed to fetch info page: ' . $r->status_line
-		if (is_client_error($r->code));
+	return if (is_client_error($r->code));
 
 	return if ($m->uri =~ /\/error-pages\//);
 
@@ -331,6 +340,8 @@ sub fetchJSON {
 	my ($url, $macros, $qs) = @_;
 
 	my $http = &fetchHTTP(@_);
+
+	return unless (defined($http));
 
 	my $json = from_json $http->decoded_content;
 

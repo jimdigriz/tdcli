@@ -5,8 +5,6 @@
  * fixup stock symbols properly (not just wholesale prepending of `LON:`)
  * requires a 100x as TD exports pounds, Google finance imports pence
  * prompt for password
- * move acct/csrftoken saving into login function
- * `Error GETing https://secure.tddirectinvesting.co.uk/webbroker2/customers/02510298000/error-pages/invalidsession.jsp: Not Found at ./tdcli line 305`
 
 # Pre-flight
 
@@ -60,14 +58,27 @@ Just running the tool with no parameters will list your accounts:
      * 1234567 {ISA}: isa
      * 0987654 {TRADING}: trading
 
-The tool has some basic built in help to show its other functionality:
+To download a copy of your transactions you can use:
+
+    $ ./tdcli -a 1234567 -T -f 2013-01-01 -t 2015-04-01 | tee transactions.csv
+
+**N.B.** the tool automatically handles and glues back together periods over 18 months for you
+
+The tool has some basic built in help to show and explain its functionality:
 
     $ ./tdcli --help
-    Usage: tdcli [ -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
-    Pull data from your TD Direct Investing account.
+    ./tdcli version 0.1 calling Getopt::Std::getopts (version 1.06),
+    running under Perl version 5.14.2.
+    Usage: ./tdcli [ -h | -v | -a 1234 [ -P | -T [ -f YYYY-MM-DD ] [ -t YYYY-MM-DD ] ] ]
+    Export transactions from your TD Direct Investing account.
     
       -a ID                    select account number
+    
       -P                       output CSV of portfolio
+    
       -T                       output CSV of transactions
-      -f YYYY-MM-DD            from date (default: first of current month)
-      -t YYYY-MM-DD            to date (default: today)
+      -f YYYY-MM-DD            transactions from date (default: first of current month)
+      -t YYYY-MM-DD            transactions until date (default: today)
+    
+      --help                   display this help and exit
+      --version                output version information and exit
