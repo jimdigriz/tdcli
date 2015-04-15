@@ -41,8 +41,8 @@ You need to create a configuration file with your account details in it:
 
 Now edit the file `~/.tdcli/config`:
 
- * **`debug`:** if set to anything (not commented out) then the HTTP requests will be printed to `STDERR`
- * **`from`:** optionally include your e-mail address in the HTTP requests made
+ * **`debug` [optional]:** if set to anything (not commented out) then the HTTP requests will be printed to `STDERR`
+ * **`from` [optional]:** include your e-mail address in the HTTP requests made
  * **`user`:** your login
  * **`pass`:** your password
  * **`stepup` section:** your memorable word, year and place goes here which is used to authenticate you from a new workstation
@@ -58,7 +58,7 @@ Just running the tool with no parameters will list your accounts:
      * 1234567 {ISA}: isa
      * 0987654 {TRADING}: trading
 
-To download a copy of your transactions you can use:
+To download a copy of your transactions you can use (this can take minutes to complete!):
 
     $ ./tdcli -a 1234567 -T -f 2013-01-01 -t 2015-04-01 | tee transactions.csv
 
