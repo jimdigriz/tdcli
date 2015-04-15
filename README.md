@@ -62,7 +62,7 @@ To download a copy of your transactions you can use (this can take minutes to co
 
     $ ./tdcli -a 1234567 -T -f 2013-01-01 -t 2015-04-01 | tee transactions.csv
 
-**N.B.** the tool automatically handles and stitches together periods over 18 months for you
+**N.B.** periods longer than 18 months *are* supported
 
 The tool has some basic built in help to show and explain its functionality:
 
