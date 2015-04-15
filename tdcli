@@ -352,32 +352,33 @@ sub fetchJSON {
 }
 
 sub parse_cb {
-	given ($_[0]) {
-		when ('start') {
-			return unless ($_[1] eq 'div');
-			return unless (defined($_[2]->{class}));
+	if ($_[0] eq 'start') {
+		return unless ($_[1] eq 'div');
+		return unless (defined($_[2]->{class}));
 
-			given ($depth) {
-				when (0) { $depth++ if ($_[2]->{class} eq 'middleWithTitle gradb2t') }
-				when (1) { $depth++ if ($_[2]->{class} eq 'row') }
-				when (2) { $depth++ if ($_[2]->{class} eq 'col-xs-6') }
-			}
+		if ($depth == 0) {
+			$depth = 1
+				if ($_[2]->{class} eq 'middleWithTitle gradb2t');
+		} elsif ($depth == 1) {
+			$depth = 2
+				if ($_[2]->{class} eq 'row');
+		} elsif ($depth == 2) {
+			$depth = 3
+				if ($_[2]->{class} eq 'col-xs-6');
 		}
-		when ('end') {
-			return unless ($depth);
-			return unless ($_[1] eq 'div');
+	} elsif ($_[0] eq 'end') {
+		return unless ($depth);
+		return unless ($_[1] eq 'div');
 
-			$depth--;
-		}
-		when ('text') {
-			return unless ($depth == 3);
+		$depth--;
+	} elsif ($_[0] eq 'text') {
+		return unless ($depth == 3);
 
-			my $text = $_[1];
-			$text =~ s/^\s*(.*?)\s*$/$1/;
+		my $text = $_[1];
+		$text =~ s/^\s*(.*?)\s*$/$1/;
 
-			return if ($text eq '');
+		return if ($text eq '');
 
-			push @o, $text;
-		}
+		push @o, $text;
 	}
 }
