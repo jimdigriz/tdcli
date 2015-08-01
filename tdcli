@@ -31,6 +31,7 @@ use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
 use constant URL_TRAN	=> '/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
 use constant URL_ORDER	=> '/orders/%ORDER%/orderDetail/view.sp';
+use constant URL_CHAL	=> '/authentication/challenge/%ACCT%.sp';
 
 my %opts;
 getopts('PTa:f:t:', \%opts);
@@ -244,11 +245,20 @@ sub login {
 	die "'login' form not found"
 		unless (defined($f));
 
+	$csrftoken = $f->find_input('CSRFTOKEN')->value;
+
+	my $j = &fetchJSON(URL_BASE . URL_CHAL, { ACCT => $cfg->{_}->{'user'} }, { CSRFTOKEN => $csrftoken });
+	die 'unable to fetch challenge: ' . $r->status_line
+		if (is_server_error($r->code));
+
 	$m->field('username', $cfg->{_}->{user});
 	my $pass = '';
-	for my $p ('first', 'second', 'third') {
-		my $l = substr $cfg->{_}->{pass}, $f->find_input("${p}Challenge")->value - 1, 1;
+	for my $p ('first', 'second', 'third', 'fourth') {
+		next unless (defined($j->{"${p}Challenge"}) && $j->{"${p}Challenge"} ne '0');
 
+		my $l = substr $cfg->{_}->{pass}, $j->{"${p}Challenge"} - 1, 1;
+
+		$m->field("${p}Challenge", $j->{"${p}Challenge"});
 		$m->field("${p}Response", $l);
 		$pass .= $l;
 	}
@@ -292,21 +302,15 @@ sub login {
 		chmod 0600, "$ENV{HOME}/.tdcli/config";
 	}
 
-	my %query = map { split /=/, $uri->query, 2 } split /&/, $uri->query, 2;
-	die 'cannot find CSRFTOKEN'
-		unless (defined($query{CSRFTOKEN}));
-
-	$csrftoken = $query{CSRFTOKEN};
+	open my $T, '>', "$ENV{HOME}/.tdcli/csrftoken";
+	chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
+	print $T $csrftoken;
+	close $T;
 
 	my $info = &fetchJSON(URL_BASE . URL_INFO, { USERACCT => $cfg->{_}->{'acct'} }, { CSRFTOKEN => $csrftoken });
 
 	$accts{$_->{accountId}} = $_
 		foreach (@{$info->{accounts}});
-
-	open my $T, '>', "$ENV{HOME}/.tdcli/csrftoken";
-	chmod 0600, "$ENV{HOME}/.tdcli/csrftoken";
-	print $T $csrftoken;
-	close $T;
 
 	return ($csrftoken, %accts)
 }
