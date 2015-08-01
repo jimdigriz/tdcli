@@ -49,16 +49,6 @@ Now edit the file `~/.tdcli/config`:
 
 **N.B.** after running this tool, you will find `acct` is added, you should not edit this
 
-An example file is:
-
-    pass=yourpassword
-    user=1234567
-    
-    [stepup]
-    place=slough
-    word=dude
-    year=6969
-
 # Usage
 
 Just running the tool with no parameters will list your accounts:
