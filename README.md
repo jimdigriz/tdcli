@@ -24,7 +24,7 @@ Start off by fetching the source which requires you to [have git installed on yo
     git clone https://github.com/jimdigriz/tdcli.git
     cd tdcli
 
-## Debian 'wheezy' 7.x
+## Debian
 
     sudo apt-get update
     sudo apt-get install -yy --no-install-recommends perl libconfig-tiny-perl libwww-mechanize-perl liburi-perl libjson-perl libdate-calc-perl libtext-csv-perl libhtml-parser-perl
