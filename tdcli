@@ -27,6 +27,7 @@ our $VERSION = '0.1';
 use constant URL_BASE	=> 'https://secure.tddirectinvesting.co.uk/webbroker2';
 use constant URL_LOGIN	=> '/login.jsp';
 use constant URL_STEPUP	=> '/displayStepUpQuestion.sp';
+use constant URL_LAND	=> '/app.sp#/portfolio';
 use constant URL_INFO	=> '/customers/%USERACCT%/accountsInfo.sp';
 use constant URL_PORT	=> '/customers/%USERACCT%/accounts/%ACCT%/portfolio-holdings.sp';
 use constant URL_TRAN	=> '/customers/%USERACCT%/account/%ACCT%/transactions/GBP.sp';
@@ -241,11 +242,10 @@ sub login {
 	die 'not allowed to fetch login page: ' . $r->status_line
 		if (is_client_error($r->code));
 
-	my $f = $m->form_name('logon');
-	die "'login' form not found"
-		unless (defined($f));
+	die 'no CSRF_REQUEST_TOKEN_VALUE in page found: ' . $r->decoded_content
+		unless ($r->decoded_content =~ /\sCSRF_REQUEST_TOKEN_VALUE\s+=\s+'([^']+)'/);
 
-	$csrftoken = $f->find_input('CSRFTOKEN')->value;
+	$csrftoken = $1;
 
 	my $j = &fetchJSON(URL_BASE . URL_CHAL, { ACCT => $cfg->{_}->{'user'} }, { CSRFTOKEN => $csrftoken });
 	die 'unable to fetch challenge: ' . $r->status_line
@@ -286,17 +286,17 @@ sub login {
 			if (is_client_error($r->code));
 	}
 
-	my $link = $m->find_link(tag => 'frame', name => 'contentFrame');
-	die 'unable to parse logged in page'
-		unless (defined($link));
+	die 'was unable to log in: ' . $r->decoded_content
+		unless ($r->decoded_content =~ /window\.location='logon\.sp'/);
 
-	my $uri = URI->new($link->URI->fragment);
+	# skip straight to the good stuff
+	$r = $m->get(URL_BASE . URL_LAND);
 
-	my $acctid = ($uri->path_segments)[2];
-	die 'cannot find user account id'
-		unless (defined($acctid));
+	die 'unable to parse logged in page' . $r->decoded_content
+		unless ($r->decoded_content =~ /var pluginToAngularCustomerJson.*"customerId":"([0-9]+)"/);
 
-	if ($acctid != $cfg->{_}->{'acct'}) {
+	my $acctid = $1;
+	if (!defined($cfg->{_}->{'acct'}) || $acctid != $cfg->{_}->{'acct'}) {
 		$cfg->{_}->{'acct'} = $acctid;
 		$cfg->write("$ENV{HOME}/.tdcli/config");
 		chmod 0600, "$ENV{HOME}/.tdcli/config";
